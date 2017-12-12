@@ -1,5 +1,5 @@
 // CFIT class implementation
-#include "cfit.h"
+#include "RecoBTag/CFIT/interface/cfit.h"
 
 ClassImp(CFIT::cfit)
 
@@ -327,7 +327,7 @@ void CFIT::cfit::sortTemplateNames()
 	  }	
      }   
    
-   if( nameId_tag.size() != *nT && nameId_tag.size() > 0 )
+   if( nameId_tag.size() != (unsigned)*nT && nameId_tag.size() > 0 )
      {
 	std::cout << "Templates in pre-tag and tag collections do not match" << std::endl;
 	reset();
@@ -368,7 +368,7 @@ void CFIT::cfit::sortTemplateNames()
 	  }	
      }   
    
-   if( nameId_untag.size() != *nT && nameId_untag.size() > 0 )
+   if( nameId_untag.size() != (unsigned)*nT && nameId_untag.size() > 0 )
      {
 	std::cout << "Templates in pre-tag and un-tag collections do not match" << std::endl;
 	reset();
@@ -1139,6 +1139,7 @@ void CFIT::cfit::processInput(std::string option)
 	
 	double vIntData = h_data->Integral();
 	double ibinMaxData = ibinMax;
+    std::cout << ibinMaxData <<std::endl;
 	if( vIntData > 0. )
 	  {
 	     int nb = h_data->GetXaxis()->GetNbins();
@@ -1280,7 +1281,7 @@ double funcDEFM(double vdata1,
    double term1 = 0.;
    double term2 = 0.;
    
-   for(int i=0;i<vmc1.size();i++)
+   for(unsigned int i=0;i<vmc1.size();i++)
      {
 	term1 += par[CFIT::cfit::PARIDXFIT->at(i)]*vmc1[i];
 	term2 += par[CFIT::cfit::PARIDXFIT->at(i)]*vmc2[i];
@@ -1454,7 +1455,7 @@ void CFIT::cfit::combSysLinear(std::vector<TH1D*> h_nom,
 	double delta_down = 0.;
 	double delta_up = 0.;
 	
-	for(int i=0;i<h_nom.size();i++)
+	for(unsigned int i=0;i<h_nom.size();i++)
 	  {
 	     double nom = h_nom[i]->GetBinContent(ib);
 	     double up = h_sys_up[i]->GetBinContent(ib);
@@ -1476,7 +1477,7 @@ void CFIT::cfit::combSysLinear(std::vector<TH1D*> h_nom,
    for(int ib=1;ib<=*nBINS;ib++)
      {
 	double nom = 0.;
-	for(int i=0;i<h_nom.size();i++)
+	for(unsigned int i=0;i<h_nom.size();i++)
 	  {
 	     nom += h_nom[i]->GetBinContent(ib);
 	  }	
@@ -2525,7 +2526,7 @@ void CFIT::cfit::applySF(std::string option)
 	     hCopy[i] = (TH1D*)h_clone[i]->Clone("hCopy");
 	     
 	     bool foundMerged = 0;
-	     for(int im=0;im<isMerged.size();im++)
+	     for(unsigned int im=0;im<isMerged.size();im++)
 	       {
 		  if( ISMERGEDFIT[i] == isMerged[im] )
 		    {
@@ -2731,7 +2732,7 @@ void CFIT::cfit::drawPrePostFit(std::string option,bool postfit)
 	     hCopy[i] = (TH1D*)h_clone[i]->Clone("hCopy");
 
 	     bool foundMerged = 0;
-	     for(int im=0;im<isMerged.size();im++)
+	     for(unsigned int im=0;im<isMerged.size();im++)
 	       {
 		  if( ISMERGEDFIT[i] == isMerged[im] )
 		    {
