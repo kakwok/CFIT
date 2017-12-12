@@ -1,5 +1,4 @@
 import os
-from CFIT import *
 from ROOT import *
 from tabulate import tabulate
 #print tabulate(chi2Table,"firstrow")
