@@ -2032,12 +2032,12 @@ void CFIT::cfit::applySys(std::vector<double> sfl,
 	  }	
 	if( option == "" ) 
 	  {
-	     std::string mname = "pics/"+covName+".eps";
+	     std::string mname = "pics/"+covName+".pdf";
 	     c1->Print(mname.c_str());
 	  }	
 	else 
 	  {
-	     std::string mname = "pics/"+covName+"_tag.eps";
+	     std::string mname = "pics/"+covName+"_tag.pdf";
 	     c1->Print(mname.c_str());
 	  }	
 	c1->Clear();
@@ -2317,17 +2317,17 @@ void CFIT::cfit::doFracSys(TH1D *hnom,TH1D *hsysDown,TH1D *hsysUp,int isys,std::
 	
 	if( producePlots )
 	  {
-	     std::string picname = "pics/sys"+postfix+".eps(";
-	     if( option == "tag" ) picname = "pics/sys"+postfix+"_tag.eps(";
+	     std::string picname = "pics/sys"+postfix+".pdf(";
+	     if( option == "tag" ) picname = "pics/sys"+postfix+"_tag.pdf(";
 	     if( option != "tag" )
 	       {	
-		  if( isys > 0 && isys != nSYS-1 ) picname = "pics/sys"+postfix+".eps";
-		  else if( isys == nSYS-1 ) picname = "pics/sys"+postfix+".eps)";
+		  if( isys > 0 && isys != nSYS-1 ) picname = "pics/sys"+postfix+".pdf";
+		  else if( isys == nSYS-1 ) picname = "pics/sys"+postfix+".pdf)";
 	       }
 	     else
 	       {
-		  if( isys > 0 && isys != nSYS-1 ) picname = "pics/sys"+postfix+"_tag.eps";
-		  else if( isys == nSYS-1 ) picname = "pics/sys"+postfix+"_tag.eps)";
+		  if( isys > 0 && isys != nSYS-1 ) picname = "pics/sys"+postfix+"_tag.pdf";
+		  else if( isys == nSYS-1 ) picname = "pics/sys"+postfix+"_tag.pdf)";
 	       }
 	     c1->Print(picname.c_str());
 	  }   
@@ -2507,8 +2507,8 @@ void CFIT::cfit::applySF(std::string option)
    
    if( producePlots )
      {	
-	std::string fsave = "pics/result.eps";
-	if( option == "tag" ) fsave = "pics/result_tag.eps";
+	std::string fsave = "pics/result.pdf";
+	if( option == "tag" ) fsave = "pics/result_tag.pdf";
 	c1->Print(fsave.c_str());
 	c1->Clear();
 	
@@ -2595,8 +2595,8 @@ void CFIT::cfit::applySF(std::string option)
 	  }   
 	legShape->Draw();
 	
-	std::string fsaveShape = "pics/shape.eps";
-	if( option == "tag" ) fsaveShape = "pics/shape_tag.eps";
+	std::string fsaveShape = "pics/shape.pdf";
+	if( option == "tag" ) fsaveShape = "pics/shape_tag.pdf";
 	c1->Print(fsaveShape.c_str());
 	c1->Clear();
 
@@ -2711,10 +2711,10 @@ void CFIT::cfit::drawPrePostFit(std::string option,bool postfit)
    
    if( producePlots )
      {	
-	std::string fsave = "pics/prefitStack.eps";
-	if( postfit ) fsave = "pics/postfitStack.eps";
-	if( option == "tag" ) fsave = "pics/prefitStack_tag.eps";
-	if( option == "tag" && postfit ) fsave = "pics/postfitStack_tag.eps";
+	std::string fsave = "pics/prefitStack.pdf";
+	if( postfit ) fsave = "pics/postfitStack.pdf";
+	if( option == "tag" ) fsave = "pics/prefitStack_tag.pdf";
+	if( option == "tag" && postfit ) fsave = "pics/postfitStack_tag.pdf";
 	c1->Print(fsave.c_str());
 	c1->Clear();
 	
@@ -2801,10 +2801,10 @@ void CFIT::cfit::drawPrePostFit(std::string option,bool postfit)
 	  }   
 	legShape->Draw();
 	
-	std::string fsaveShape = "pics/prefit.eps";
-	if( postfit ) fsaveShape = "pics/postfit.eps";
-	if( option == "tag" ) fsaveShape = "pics/prefit_tag.eps";
-	if( option == "tag" && postfit ) fsaveShape = "pics/postfit_tag.eps";
+	std::string fsaveShape = "pics/prefit.pdf";
+	if( postfit ) fsaveShape = "pics/postfit.pdf";
+	if( option == "tag" ) fsaveShape = "pics/prefit_tag.pdf";
+	if( option == "tag" && postfit ) fsaveShape = "pics/postfit_tag.pdf";
 	c1->Print(fsaveShape.c_str());
 	c1->Clear();
 
