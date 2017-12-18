@@ -2,56 +2,105 @@ import os
 from ROOT import *
 from tabulate import tabulate
 #print tabulate(chi2Table,"firstrow")
+def errAB(product,a,errA,b,errB):
+    ferr    = ((errA/a)**2+(errB/b)**2)**(0.5)
+    return product * ferr
 
-def FitAndGetEff(cf,b_templates,denominator_templates,all_templates):
+def FitAndGetEff(cf,b_template,all_templates,printOut=None):
     print "Running fit on untagged histograms"
     cf.Run()
-    printResults(cf,all_templates)
-    chi2 = cf.GetChisq()
-    print "chi2=%s "% chi2
+    #printResults(cf,all_templates)
+    chi2pDOF = cf.GetChisq()
+    Ndof = cf.GetNDOF()
+    chi2pDOF_str = "%.3f/%s = %.3f"%(chi2pDOF*Ndof,Ndof,chi2pDOF)
+
+    #Table for results of yields
+    resultTable =[]
+    resultTable_cols = ['TemplateName','preFitN(Inclusive)','weight(inclusive)','postFitN(Inclusive)','preFitN(Tagged)','weight(Tagged)','postFitN(Tagged)']
+    resultTable.append(resultTable_cols)
+    #Table for results of fits
+    fitTable    =[]
+    fitTable_cols   =['Fit','chi2/dof','data','MC(sum)']
+    fitTable.append(fitTable_cols)
 
     ndata = cf.GetNData()
-    nmc_btmps         = nmc_all        = 0
-    nmc_btmps_tagged  = nmc_all_tagged = 0
-    for tmp in b_templates:
-        nmc_btmps += cf.GetNTemplate(tmp)
-    for tmp in denominator_templates:
-        nmc_all   += cf.GetNTemplate(tmp)
-    
+    mc_sum=0
+    #List of dic. to contain the results
+    template_results=[]
+    #Put fit parameters and 
+    for i,tmp in enumerate(all_templates):
+        tmp_result ={}
+        tmp_result['label']                  = tmp['label']
+        b   =tmp_result['par_noTag']         = cf.GetPar(i)
+        errb=tmp_result['parErr_noTag']      = cf.GetParErr(i)
+        a   =tmp_result['preFitN_noTag']     = cf.GetNTemplate(tmp['label'])
+        erra=tmp_result['preFitN_err_noTag'] = cf.GetErrTemplate(tmp['label'])
+        tmp_result['postFitN_noTag']         = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)
+        tmp_result['postFitN_err_noTag']     = errAB( a*b, a, erra, b,errb)
+        mc_sum += tmp_result['postFitN_noTag']
+        template_results.append(tmp_result)
+    fitTable_row =['Inclusive',chi2pDOF_str,ndata,mc_sum] 
+    fitTable.append(fitTable_row)
     print "Running fit on tagged histograms"
     cf.Run("tag")   
-    chi2 = cf.GetChisq()
-    print "chi2=%s "% chi2
-    printResults(cf,all_templates)
-    
+    chi2pDOF = cf.GetChisq()
+    Ndof = cf.GetNDOF()
+    chi2pDOF_str = "%.3f/%s = %.3f"%(chi2pDOF*Ndof,Ndof,chi2pDOF)
+
+
+    #printResults(cf,all_templates)
     ndata_tag = cf.GetNData()
-    for tmp in b_templates:
-        nmc_btmps_tagged += cf.GetNTemplate(tmp)
-    for tmp in denominator_templates:
-        nmc_all_tagged   += cf.GetNTemplate(tmp)
-    
-    # Fraction of btagged templates in all QCD templates 
-    #fr     = nmc_btmps/nmc_all
-    fr     = nmc_btmps/nmc_all
-    # Fraction of btagged templates in all QCD templates among the tagged jets
-    fr_tag = nmc_btmps_tagged/nmc_all_tagged
-    
-    effMC   = nmc_btmps_tagged/nmc_btmps
-    coeff   = fr_tag/fr
-    effDATA = coeff* (ndata_tag/ndata)
-    print "Post fit"
-    print "nMC tagged   = %.3f                    nMC_total   = %.3f                                 effMC=nMC_tagged/nMC_total   = %.4f"           %(nmc_btmps_tagged,nmc_btmps, effMC)
-    print "fr_tag(b)    = %.3f                    fr(b)       = %.3f" %(fr_tag,fr)
-    print "nData tagged = %.3f                    nData_total = %.3f  coeff=fr_tag(b)/fr(b)= %.3f   effData=coeff*(nData tagged/nData_total) = %.4f"%(ndata_tag,ndata, coeff, effDATA)
-    print "sf      = %.4f"%(effDATA/effMC)
+    mc_sum = 0
+    #Save Tagged results
+    for i,tmp in enumerate(all_templates):
+        for result in template_results:
+            if(result['label']==tmp['label']):
+                b   =result['par_Tag']          = cf.GetPar(i)
+                errb=result['parErr_Tag']       = cf.GetParErr(i)
+                a   =result['preFitN_Tag']      = cf.GetNTemplate(tmp['label'])
+                erra=result['preFitN_err_Tag']  = cf.GetErrTemplate(tmp['label'])
+                result['postFitN_Tag']          = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)
+                result['postFitN_err_Tag']      = errAB( a*b,a,erra,b,errb) 
+                mc_sum += result['postFitN_Tag']
+    fitTable_row =['Tagged',chi2pDOF_str,ndata_tag,mc_sum] 
+    fitTable.append(fitTable_row)
+
+    #Calculate eff and SF from results
+    for result in template_results:
+        resultTable_row = []
+        resultTable_row.append(result['label'])
+        resultTable_row.append("%.1f"%result['preFitN_noTag'])
+        resultTable_row.append("%.3f"%result['par_noTag'])
+        resultTable_row.append("%.1f"%result['postFitN_noTag'])
+        resultTable_row.append("%.1f"%result['preFitN_Tag'])
+        resultTable_row.append("%.3f"%result['par_Tag'])
+        resultTable_row.append("%.2f"%result['postFitN_Tag'])
+        resultTable.append(resultTable_row)
+        if result['label'] == b_template:
+            effMC       = result['preFitN_Tag']  / result['preFitN_noTag']
+            effData     = result['postFitN_Tag'] / result['postFitN_noTag']
+            sf          = effData/effMC
+            effMC_err   = errAB(effMC  , result['preFitN_Tag'], result['preFitN_err_Tag'], result['preFitN_noTag'], result['preFitN_err_noTag'])
+            effData_err = errAB(effData, result['postFitN_Tag'], result['postFitN_err_Tag'], result['postFitN_noTag'], result['postFitN_err_noTag'])
+            sf_err      = errAB(sf     , effMC, effMC_err, effData, effData_err) 
+            if(printOut is not "noPrint"):
+                print "effMC  = %.3f +- %.3f"%(effMC,effMC_err)
+                print "effData= %.3f +- %.3f"%(effData,effData_err)
+                print "sf     = %.3f +- %.3f"%(sf,sf_err)
+
+    if(printOut is not "noPrint"):
+        print tabulate(resultTable,"firstrow") 
+        print tabulate(fitTable,"firstrow")
+    return {"effMC":effMC,"errData":effData,"sf":sf,"effMC_err":effMC_err,"effData_err":effData_err,"sf_err":sf_err,"chi2_noTag":fitTable[0][1],"chi2_Tag":fitTable[0][1]} 
 
 def printResults(cfit,templates):
     postFit_table=[]
-    postFit_header=["Template","PostFit yield","Fitted Weight"]
+    postFit_header=["Template","PostFit GetNTemplate","Fit Par.","Post-fit yield"]
     postFit_table.append(postFit_header)
     for i,template in enumerate(templates):
         fit_result = "%.3f +- %.3f"%(cfit.GetPar(i),cfit.GetParErr(i))
-        postFit_table.append([template['label'],cf.GetNTemplate(template['label']),fit_result])
+        postFit_yield = cf.GetNTemplate(template['label'])*cfit.GetPar(i)
+        postFit_table.append([template['label'],cf.GetNTemplate(template['label']),fit_result,postFit_yield])
     print tabulate(postFit_table,"firstrow")
     return
     #for i in range(0,cfit.GetNPar()):
@@ -79,22 +128,18 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
         if "all" in tag:
             dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
-            #print "Setting data preTag histo = ", dataHistoName
             cf.SetData(dataHistoName)
             for template in templates:
                 QCDhistoname = QCDheader+tag+"_"+template['suffix']
                 histoNames.append(QCDhistoname)
-                #print "Setting template preTag histo = ", QCDhistoname
                 cf.AddTemplate(template['label'], QCDhistoname,  template['color'])
         if "pass" in tag:
             dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             cf.SetDataTag(dataHistoName)
-            #print "Setting data Tagged histo = ", dataHistoName
             for template in templates:
                 QCDhistoname = QCDheader+tag+"_"+template['suffix']
                 histoNames.append(QCDhistoname)
-                #print "Setting template Tagged histo = ", QCDhistoname
                 cf.AddTemplateTag(template['label'], QCDhistoname,  template['color'])
         if "fail" in tag:
             dataHistoName = dataHeader+tag+"_data"
@@ -116,14 +161,14 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
     data_row    =["data_"+pTbin+"_"+WP]
     for tag in tagList:
         dataHistoName = dataHeader+tag+"_data"
-        nEvent = tFile.Get(dataHistoName).GetEntries()
+        nEvent = tFile.Get(dataHistoName).Integral()
         data_row.append(nEvent)
     preFit_yield.append(data_row) 
     for template in templates:
         template_row=["QCD_"+pTbin+"_"+WP+"_"+template['suffix']]
         for tag in tagList:
             QCDhistoname = QCDheader+tag+"_"+template['suffix']
-            nEvent = tFile.Get(QCDhistoname).GetEntries()
+            nEvent = tFile.Get(QCDhistoname).Integral()
             template_row.append(nEvent)
         preFit_yield.append(template_row) 
     print "All histo names:"
@@ -143,18 +188,22 @@ cf.ProducePlots(1)
 #CFITinput = "/afs/cern.ch/user/k/kakwok/work/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/CFIT_btagval_histograms.root"
 #CFITinput = "/afs/cern.ch/user/k/kakwok/work/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/CFitInput/CFIT_mcJPcalib.root"
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_sysMerged.root"
-CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_btagval.root"
+#CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_btagval.root"
+CFITinput = "/Final_histograms_btagval.root"
 
-cf.SetInputFile(CFITinput)
-#cf.AddSys("SYS1","_sys1_down","_sys1_up")
-#cf.AddSys("SYS2","_sys2_down","_sys2_up")
-
-cf.SetMatrixOption("WRITE")
+sysList = [
+    'BFRAG',
+    'CD',
+    'CFRAG',
+    'K0L',
+    'NTRACKS',
+    'PU'
+]
 templates =[
-{'label':'b'     , 'suffix':'b'     ,'color':2},
-{'label':'bfromg', 'suffix':'bfromg','color':3},
-{'label':'c'     , 'suffix':'c'     ,'color':4},
+{'label':'bfromg', 'suffix':'bfromg','color':2},
+{'label':'b'     , 'suffix':'b'     ,'color':3},
 {'label':'cfromg', 'suffix':'cfromg','color':5},
+{'label':'c'     , 'suffix':'c'     ,'color':4},
 {'label':'l'     , 'suffix':'l'     ,'color':6}
 ]
 glueTemplates=[
@@ -167,27 +216,40 @@ glueTemplatesTag=[
 pTbin = "pt350to2000"
 #pTbin = "pt200to350"
 WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
+#WP    = "DoubleBH"   # Benedikt uses H for 0.9
 print "Using input file: ",CFITinput
 
+
+cf.SetInputFile(CFITinput)
+cf.AddSys("Bfrag","_BFRAG_down","_BFRAG_up")
+
+cf.SetMatrixOption("WRITE")
 # Set the data and QCD templates 
 SetDataAndTemplates(cf, pTbin, WP, templates,glueTemplates,glueTemplatesTag)
+#SetDataAndTemplates(cf, pTbin, WP, templates)
 
 #labels of templates counted to be efficient
 b_templates =['bfromg']
-#labels of templates to be counted as total
-denominator_templates=['b','bfromg','c','cfromg']
 # Fit and get efficiencies
-FitAndGetEff(cf, b_templates, denominator_templates,templates)
+normSFdict=FitAndGetEff(cf, 'bfromg',templates)
 
 # perform statistical variation
+print '-----------------------------'
+print 'Perform statistical variation'
+print '-----------------------------'
 cf.SetMatrixOption("READ")
-cf.SetStatVariation(667)
-cf.ProducePlots(1)   
-cf.Run()
-#printResults(cf,templates)
-cf.SetStatVariation(667)
-cf.Run("tag")
-#printResults(cf,templates)
+avgSF = 0
+nStat = 10
+for i in range(667,667+nStat):
+    cf.SetStatVariation(678)
+    if i==667+nStat:
+        cf.ProducePlots(1)   
+    sf_dict = FitAndGetEff(cf, 'bfromg',templates,"noPrint")
+    avgSF += float(sf_dict['sf'])
+print "Average SF = %.3f "% (avgSF/nStat)
+#cf.Run()
+#cf.SetStatVariation(667)
+#cf.Run("tag")
    
 #do the calculation of SF here again ....
 
@@ -198,11 +260,6 @@ cf.Run("tag")
 #printResults(cf)
 #cf.SetSysVariation("_sys1_up")
 #cf.Run("tag")
-#printResults(cf)
-   
-
-chi2 = cf.GetChisq()
-print "chi2=%s "% chi2
 #printResults(cf)
 
 del cf
