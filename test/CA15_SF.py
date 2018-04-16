@@ -11,9 +11,9 @@ def GetSFtableRow( SFname,  SFdict, normSFdict ):
     row=[SFname]
     row.append('%s'        %(SFdict['chi2_noTag']))
     row.append('%s'        %(SFdict['chi2_Tag']))
-    row.append('%.3f +- %.3f'%(SFdict['effMC'],SFdict['effMC_err']))
-    row.append('%.3f +- %.3f'%(SFdict['effData'],SFdict['effData_err']))
-    row.append('%.3f +- %.3f'%(SFdict['sf'],SFdict['sf_err']))
+    row.append('%.2f +- %.3f'%(SFdict['effMC'],SFdict['effMC_err']))
+    row.append('%.2f +- %.3f'%(SFdict['effData'],SFdict['effData_err']))
+    row.append('%.5f +- %.5f'%(SFdict['sf'],SFdict['sf_err']))
     if(SFname is not "Nominal"):
         deltaSF = SFdict['sf'] - normSFdict['sf']
         row.append('%.4f'%(deltaSF))
@@ -92,10 +92,10 @@ def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
         resultTable_row = []
         resultTable_row.append(result['label'])
         resultTable_row.append("%.1f"%result['preFitN_noTag'])
-        resultTable_row.append("%.3f"%result['par_noTag'])
+        resultTable_row.append("%.3f+-%.3f"%(result['par_noTag'],result['parErr_noTag']))
         resultTable_row.append("%.1f"%result['postFitN_noTag'])
         resultTable_row.append("%.1f"%result['preFitN_Tag'])
-        resultTable_row.append("%.3f"%result['par_Tag'])
+        resultTable_row.append("%.3f+-%.3f"%(result['par_Tag'],result['parErr_Tag']))
         resultTable_row.append("%.2f"%result['postFitN_Tag'])
         resultTable.append(resultTable_row)
         if result['label'] == b_template:
@@ -106,9 +106,9 @@ def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
             effData_err = errAB(effData, result['postFitN_Tag'], result['postFitN_err_Tag'], result['postFitN_noTag'], result['postFitN_err_noTag'])
             sf_err      = errAB(sf     , effMC, effMC_err, effData, effData_err) 
             if(printOut is not "noPrint"):
-                print "effMC  = %.3f +- %.3f"%(effMC,effMC_err)
-                print "effData= %.3f +- %.3f"%(effData,effData_err)
-                print "sf     = %.3f +- %.3f"%(sf,sf_err)
+                print "effMC  = %.2f +- %.3f"%(effMC,effMC_err)
+                print "effData= %.2f +- %.3f"%(effData,effData_err)
+                print "sf     = %.2f +- %.3f"%(sf,sf_err)
 
     if(printOut is not "noPrint"):
         print tabulate(resultTable,"firstrow") 
@@ -146,13 +146,14 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
         dataHeader = "UNWEIGHTED__DATA__FatJet_JP_"
         QCDheader  = "UNWEIGHTED__QCD__FatJet_JP_"
     else:
-        #dataHeader = "UNWEIGHTED__DATA__FatJet_JP_"
-        #QCDheader  = "UNWEIGHTED__QCD__FatJet_JP_"
-        dataHeader = "DATA__FatJet_JP_"
-        QCDheader  = "QCD__FatJet_JP_"
+        dataHeader = "UNWEIGHTED__DATA__FatJet_JP_"
+        QCDheader  = "UNWEIGHTED__QCD__FatJet_JP_"
+        #dataHeader = "DATA__FatJet_JP_"
+        #QCDheader  = "QCD__FatJet_JP_"
     for tag in tagList :
         if "all" in tag:
-            dataHistoName = dataHeader+tag+"_data"
+            dataHistoName = dataHeader+tag+"_data_opt"
+            #dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             cf.SetData(dataHistoName)
             for template in templates:
@@ -160,7 +161,8 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
                 histoNames.append(QCDhistoname)
                 cf.AddTemplate(template['label'], QCDhistoname,  template['color'])
         if "pass" in tag:
-            dataHistoName = dataHeader+tag+"_data"
+            dataHistoName = dataHeader+tag+"_data_opt"
+            #dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             cf.SetDataTag(dataHistoName)
             for template in templates:
@@ -168,7 +170,8 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
                 histoNames.append(QCDhistoname)
                 cf.AddTemplateTag(template['label'], QCDhistoname,  template['color'])
         if "fail" in tag:
-            dataHistoName = dataHeader+tag+"_data"
+            dataHistoName = dataHeader+tag+"_data_opt"
+            #dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             cf.SetDataUntag(dataHistoName)
             for template in templates:
@@ -186,7 +189,9 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
     preFit_yield = [["Name","Prefit yield(untagged)","Prefit yield(pass)","Prefit yield(fail)"]]
     data_row    =["data_"+pTbin+"_"+WP]
     for tag in tagList:
-        dataHistoName = dataHeader+tag+"_data"
+        dataHistoName = dataHeader+tag+"_data_opt"
+        print dataHistoName
+        #dataHistoName = dataHeader+tag+"_data"
         nEvent = tFile.Get(dataHistoName).Integral()
         data_row.append(nEvent)
     preFit_yield.append(data_row) 
@@ -208,7 +213,7 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
 #parser.add_argument("--doStat"   ,  help="Run statistic variation")
 #args = parser.parse_args()
 doSYS  =False 
-doStat =True
+doStat =False  # Need to set doSYS true
 
 gInterpreter.Declare("#include \"RecoBTag/CFIT/interface/cfit.h\"")
 gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.so"))
@@ -224,9 +229,14 @@ cf.ProducePlots(1)
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_btagval.root"
 #CFITinput = args.inputFile 
 #CFITinput = "Final_histograms_sysMerged.root"
-#CFITinput = "Final_histograms_sysMerged_rebinned.root"
-CFITinput = "CFIT_btagval_histograms_fixQCDnorm_rebin.root"
 #CFITinput  = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/SFtemplates_dataJPcalib/Final_histograms_btagval_optimized_doublemu_BTagMu_QCDMuEnriched_HLTAK8Jet300_mcJPcalib_pt350_DoubleBM2.root"
+
+# Use this file to get nominal values+systematics and statistics, doubleB>0.9
+#CFITinput = "Final_histograms_sysMerged_rebinned.root"
+#CFITinput = "Final_histograms_sysMerged__rebinned.root"
+# Use this file to get DataJPcalib systematics
+#CFITinput = "CFIT_btagval_histograms_fixQCDnorm_DataJPcalib_rebin__rebinned.root"
+CFITinput = "Both_ADDBINNING.root"
 
 sysList = [
     'BFRAG',
@@ -236,12 +246,19 @@ sysList = [
     'NTRACKS',
     'PU'
 ]
+#templates =[
+#{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg','color':2},
+#{'label':'b'                     , 'suffix':'b'     ,'color':3},
+#{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg','color':5},
+#{'label':'c'                     , 'suffix':'c'     ,'color':4},
+#{'label':'l'                     , 'suffix':'l'     ,'color':6}
+#]
 templates =[
-{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg','color':2},
-{'label':'b'                     , 'suffix':'b'     ,'color':3},
-{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg','color':5},
-{'label':'c'                     , 'suffix':'c'     ,'color':4},
-{'label':'l'                     , 'suffix':'l'     ,'color':6}
+{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg_opt','color':2},
+{'label':'b'                     , 'suffix':'b_opt'     ,'color':3},
+{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg_opt','color':5},
+{'label':'c'                     , 'suffix':'c_opt'     ,'color':4},
+{'label':'l'                     , 'suffix':'l_opt'     ,'color':6}
 ]
 glueTemplates=[
 {'label':'b+g #rightarrow c#bar{c}'  , 'glueList':['b','g #rightarrow c#bar{c}']  ,'color':221},
@@ -250,15 +267,18 @@ glueTemplates=[
 glueTemplatesTag=[
 {'label':'other flavours'  , 'glueList':['b','c','l','g #rightarrow c#bar{c}']  ,'color':42},
 ]
+#glueTemplates=None
+#glueTemplatesTag=None
 pTbin = "pt350to2000"
 #pTbin = "pt200to350"
-#WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
-WP    = "DoubleBH"   # Benedikt uses H for 0.9
-cf.SetLegendHeader("pT=[350,2000] DoubleBL=0.9")
+WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
+#WP    = "DoubleBH"   # Benedikt uses H for 0.9
+cf.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
+#cf.SetLegendHeader("pT=[350,2000] DoubleBL=0.9")
 print "Using input file: ",CFITinput
 
 sfTable =[]
-sfTable_cols=['Name','chi2(noTag)','chi2(Tag)','effMC','effData','sf','delta_SF']
+sfTable_cols=['Name','chi2(inclusive)','chi2(passed)','effMC','effData','sf','delta_SF']
 sfTable.append(sfTable_cols)
 
 cf.SetInputFile(CFITinput)
