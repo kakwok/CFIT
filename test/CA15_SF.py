@@ -25,7 +25,13 @@ def GetSFtableRow( SFname,  SFdict, normSFdict ):
 
 def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
     if nStat is not -1 :        cf.SetStatVariation(nStat)
-    if SysName is not "NA" :        cf.SetSysVariation(SysName)
+    #if SysName in all_templates.keys:
+    #    
+    #elif SysName not "NA" :
+    #    cf.SetSysVariation(SysName)
+    if SysName is not "NA":
+        cf.SetSysVariation(SysName)
+        
     print "Running fit on untagged histograms"
     cf.Run()
     #printResults(cf,all_templates)
@@ -53,7 +59,8 @@ def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
         b   =tmp_result['par_noTag']         = cf.GetPar(i)
         errb=tmp_result['parErr_noTag']      = cf.GetParErr(i)
         a   =tmp_result['preFitN_noTag']     = cf.GetNTemplate(tmp['label'])
-        erra=tmp_result['preFitN_err_noTag'] = cf.GetErrTemplate(tmp['label'])
+        erra=tmp_result['preFitN_err_noTag'] = 0
+        #erra=tmp_result['preFitN_err_noTag'] = cf.GetErrTemplate(tmp['label'])
         tmp_result['postFitN_noTag']         = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)
         tmp_result['postFitN_err_noTag']     = errAB( a*b, a, erra, b,errb)
         mc_sum += tmp_result['postFitN_noTag']
@@ -80,7 +87,8 @@ def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
                 b   =result['par_Tag']          = cf.GetPar(i)
                 errb=result['parErr_Tag']       = cf.GetParErr(i)
                 a   =result['preFitN_Tag']      = cf.GetNTemplate(tmp['label'])
-                erra=result['preFitN_err_Tag']  = cf.GetErrTemplate(tmp['label'])
+                erra=result['preFitN_err_Tag']  = 0
+                #erra=result['preFitN_err_Tag']  = cf.GetErrTemplate(tmp['label'])
                 result['postFitN_Tag']          = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)
                 result['postFitN_err_Tag']      = errAB( a*b,a,erra,b,errb) 
                 mc_sum += result['postFitN_Tag']
@@ -138,10 +146,62 @@ def ListToVector(pyList,Type):
         v.push_back(element)
     return v
 
-def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTag=None):
+def SetDataAndTemplates(cf,histograms,templates,glueTemplates=None,glueTemplatesTag=None):
+# histograms['data']            = {'all':h_nameAll,'tag':h_nameTag,'untag':h_nameUntag}
+# histograms[template['label']] = {'all':h_nameAll,'tag':h_nameTag,'untag':h_nameUntag}
+    dataHists     = histograms['data']
+    cf.SetData(     dataHists['all'])
+    cf.SetDataTag(  dataHists['tag'])
+    cf.SetDataUntag(dataHists['untag'])
+    for template in templates:
+        templateHists = histograms[template['label']]
+        cf.AddTemplate(template['label']     , templateHists['all'  ],  template['color'])
+        cf.AddTemplateTag(template['label']  , templateHists['tag'  ],  template['color'])
+        cf.AddTemplateUntag(template['label'], templateHists['untag'],  template['color'])
+    if glueTemplates is not None:
+        for g in glueTemplates:
+            cf.GlueTemplates(ListToVector(g['glueList'],"string"),g['label'],g['color'])
+    if glueTemplatesTag is not None:
+        for g in glueTemplatesTag:
+            cf.GlueTemplatesTag(ListToVector(g['glueList'],"string"),g['label'],g['color'])
+
+def ModifyHistograms(cf,CFITinput,templates,histograms):
+    tFile =  TFile.Open(CFITinput)
+    CFITupdatedROOTname = CFITinput.replace(".root","_updated.root")
+    if os.path.exists(CFITupdatedROOTname):
+        print "removing previous scaled file"
+        os.system('rm %s'%CFITupdatedROOTname)
+    CFITupdatedROOT     = TFile(CFITinput.replace(".root","_updated.root"),"RECREATE")
+    for template in templates:
+        for hName in template['histoNames']:
+            #print "modifying ",hName
+            h = tFile.Get(hName)
+            hClone = h.Clone()
+            hClone.Scale(template['scale'])
+            hClone.Write()
+    for key in histograms['data'].keys():
+        h = tFile.Get(histograms['data'][key])
+        hClone = h.Clone()
+        hClone.Write()
+    tFile.Close()
+    CFITupdatedROOT.Close()
+    cf.SetInputFile(CFITupdatedROOTname)
+    return CFITupdatedROOTname
+
+    
+def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
+    print "reading histograms from ",CFITinput
     tFile = TFile.Open(CFITinput)
     tagList = ["all_"+pTbin,WP+"pass_"+pTbin,WP+"fail_"+pTbin]
     histoNames =[]
+    histograms = {}
+    histograms['data'] = {}
+    for template in templates:
+        histograms[template['label']] = {}
+        #reset template histoNames
+        template['histoNames'] =[]
+    
+
     if doSYS:
         dataHeader = "UNWEIGHTED__DATA__FatJet_JP_"
         QCDheader  = "UNWEIGHTED__QCD__FatJet_JP_"
@@ -152,46 +212,42 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
         #QCDheader  = "QCD__FatJet_JP_"
     for tag in tagList :
         if "all" in tag:
-            dataHistoName = dataHeader+tag+"_data_opt"
-            #dataHistoName = dataHeader+tag+"_data"
+            #dataHistoName = dataHeader+tag+"_data_opt"
+            dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
-            cf.SetData(dataHistoName)
+            histograms['data']['all'] = dataHistoName
             for template in templates:
                 QCDhistoname = QCDheader+tag+"_"+template['suffix']
                 histoNames.append(QCDhistoname)
-                cf.AddTemplate(template['label'], QCDhistoname,  template['color'])
+                template['histoNames'].append(QCDhistoname)
+                histograms[template['label']]['all'] = QCDhistoname
         if "pass" in tag:
-            dataHistoName = dataHeader+tag+"_data_opt"
-            #dataHistoName = dataHeader+tag+"_data"
+            #dataHistoName = dataHeader+tag+"_data_opt"
+            dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
-            cf.SetDataTag(dataHistoName)
+            histograms['data']['tag'] = dataHistoName
             for template in templates:
                 QCDhistoname = QCDheader+tag+"_"+template['suffix']
                 histoNames.append(QCDhistoname)
-                cf.AddTemplateTag(template['label'], QCDhistoname,  template['color'])
+                template['histoNames'].append(QCDhistoname)
+                histograms[template['label']]['tag'] = QCDhistoname
         if "fail" in tag:
-            dataHistoName = dataHeader+tag+"_data_opt"
-            #dataHistoName = dataHeader+tag+"_data"
+            #dataHistoName = dataHeader+tag+"_data_opt"
+            dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
-            cf.SetDataUntag(dataHistoName)
+            histograms['data']['untag'] = dataHistoName
             for template in templates:
                 QCDhistoname = QCDheader+tag+"_"+template['suffix']
                 histoNames.append(QCDhistoname)
-                cf.AddTemplateUntag(template['label'], QCDhistoname,  template['color'])
-    if glueTemplates is not None:
-        for g in glueTemplates:
-            cf.GlueTemplates(ListToVector(g['glueList'],"string"),g['label'],g['color'])
-    if glueTemplatesTag is not None:
-        for g in glueTemplatesTag:
-            cf.GlueTemplatesTag(ListToVector(g['glueList'],"string"),g['label'],g['color'])
-
+                template['histoNames'].append(QCDhistoname)
+                histograms[template['label']]['untag'] = QCDhistoname
     #Make table
-    preFit_yield = [["Name","Prefit yield(untagged)","Prefit yield(pass)","Prefit yield(fail)"]]
+    preFit_yield = [["Name","Prefit yield(all)","Prefit yield(pass)","Prefit yield(fail)"]]
     data_row    =["data_"+pTbin+"_"+WP]
     for tag in tagList:
-        dataHistoName = dataHeader+tag+"_data_opt"
-        print dataHistoName
-        #dataHistoName = dataHeader+tag+"_data"
+        #print dataHistoName
+        #dataHistoName = dataHeader+tag+"_data_opt"
+        dataHistoName = dataHeader+tag+"_data"
         nEvent = tFile.Get(dataHistoName).Integral()
         data_row.append(nEvent)
     preFit_yield.append(data_row) 
@@ -202,18 +258,42 @@ def SetDataAndTemplates(cf,pTbin,WP,templates,glueTemplates=None,glueTemplatesTa
             nEvent = tFile.Get(QCDhistoname).Integral()
             template_row.append(nEvent)
         preFit_yield.append(template_row) 
-    print "All histo names:"
-    for hname in histoNames:
-        print hname
-    print tabulate(preFit_yield,"firstrow")
+    if printTable=="printTable":
+        print "All histo names:"
+        for hname in histoNames:
+            print hname
+        print tabulate(preFit_yield,"firstrow")
+    for template in templates:
+        hNames_withoutSys = []
+        for hName in template['histoNames']:
+            hNames_withoutSys.append(hName)
+        for sys in systematics:
+            for hName in hNames_withoutSys:
+                if not (sys['suffix_up'] in hName or sys['suffix_down']in hName):
+                    #print "adding histnames for systematic = ",hName+sys['suffix_up']
+                    if not hName+sys['suffix_up'] in template['histoNames']:
+                        template['histoNames'].append(hName+sys['suffix_up'])
+                    if not sys['suffix_down']==sys['suffix_up']:
+                        if not hName+sys['suffix_down'] in template['histoNames']:
+                            template['histoNames'].append(hName+sys['suffix_down'])
+    return histograms 
 
 #parser = argparse.ArgumentParser()
 #parser.add_argument("--inputFile", help="path to the histogram file")
 #parser.add_argument("--doSYS"    , help="Run systematic variation")
 #parser.add_argument("--doStat"   ,  help="Run statistic variation")
 #args = parser.parse_args()
-doSYS  =False 
+doSYS  =True
 doStat =False  # Need to set doSYS true
+
+def cfInit():
+    cfnew = CFIT.cfit("JP discriminator")
+    cfnew.SetOptimization(OPT_MORPH_SGN_SIGMA)
+    cfnew.SetMorphing(OPTMORPH_GEOMETRIC)
+    cfnew.ProducePlots(1)
+    cfnew.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
+    return cfnew
+
 
 gInterpreter.Declare("#include \"RecoBTag/CFIT/interface/cfit.h\"")
 gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.so"))
@@ -233,10 +313,11 @@ cf.ProducePlots(1)
 
 # Use this file to get nominal values+systematics and statistics, doubleB>0.9
 #CFITinput = "Final_histograms_sysMerged_rebinned.root"
-#CFITinput = "Final_histograms_sysMerged__rebinned.root"
+CFITinput = "Final_histograms_sysMerged__rebinned.root"
+#CFITinput = "Final_histograms_sysMerged__rebinned_updated.root"
 # Use this file to get DataJPcalib systematics
 #CFITinput = "CFIT_btagval_histograms_fixQCDnorm_DataJPcalib_rebin__rebinned.root"
-CFITinput = "Both_ADDBINNING.root"
+#CFITinput = "Both_ADDBINNING.root"
 
 sysList = [
     'BFRAG',
@@ -246,26 +327,34 @@ sysList = [
     'NTRACKS',
     'PU'
 ]
-#templates =[
-#{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg','color':2},
-#{'label':'b'                     , 'suffix':'b'     ,'color':3},
-#{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg','color':5},
-#{'label':'c'                     , 'suffix':'c'     ,'color':4},
-#{'label':'l'                     , 'suffix':'l'     ,'color':6}
-#]
 templates =[
-{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg_opt','color':2},
-{'label':'b'                     , 'suffix':'b_opt'     ,'color':3},
-{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg_opt','color':5},
-{'label':'c'                     , 'suffix':'c_opt'     ,'color':4},
-{'label':'l'                     , 'suffix':'l_opt'     ,'color':6}
+{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg','color':2,'scale':1, 'histoNames':[]},
+{'label':'b'                     , 'suffix':'b'     ,'color':3,'scale':1, 'histoNames':[]},
+{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg','color':5,'scale':1, 'histoNames':[]},
+{'label':'c'                     , 'suffix':'c'     ,'color':4,'scale':1, 'histoNames':[]},
+{'label':'l'                     , 'suffix':'l'     ,'color':6,'scale':1, 'histoNames':[]}
 ]
+#templates =[
+#{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg_opt','color':2,'scale':1, 'histoNames':[]},
+#{'label':'b'                     , 'suffix':'b_opt'     ,'color':3,'scale':1, 'histoNames':[]},
+#{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg_opt','color':5,'scale':1, 'histoNames':[]},
+#{'label':'c'                     , 'suffix':'c_opt'     ,'color':4,'scale':1, 'histoNames':[]},
+#{'label':'l'                     , 'suffix':'l_opt'     ,'color':6,'scale':1, 'histoNames':[]}
+#]
 glueTemplates=[
 {'label':'b+g #rightarrow c#bar{c}'  , 'glueList':['b','g #rightarrow c#bar{c}']  ,'color':221},
 {'label':'c+light'                   , 'glueList':['c','l']                       ,'color':93}
 ]
 glueTemplatesTag=[
 {'label':'other flavours'  , 'glueList':['b','c','l','g #rightarrow c#bar{c}']  ,'color':42},
+]
+systematics = [
+{'label':'bFrag', 'suffix_up':'_BFRAGUP', 'suffix_down':'_BFRAGDOWN' },
+{'label':'PU'   , 'suffix_up':'_PUUP', 'suffix_down':'_PUDOWN' },
+{'label':'CD'   , 'suffix_up':'_CD', 'suffix_down':'_CD' },
+{'label':'CFRAG', 'suffix_up':'_CFRAG', 'suffix_down':'_CFRAG' },
+{'label':'K0L'  , 'suffix_up':'_K0L', 'suffix_down':'_K0L' },
+{'label':'Ntrks', 'suffix_up':'_NTRACKS', 'suffix_down':'_NTRACKS' },
 ]
 #glueTemplates=None
 #glueTemplatesTag=None
@@ -283,23 +372,51 @@ sfTable.append(sfTable_cols)
 
 cf.SetInputFile(CFITinput)
 if doSYS:
-    cf.AddSys("bFrag","_BFRAGUP","_BFRAGDOWN")
-    cf.AddSys("PU","_PUUP","_PUDOWN")
-    cf.AddSys("CD","_CD","_CD")
-    cf.AddSys("CFRAG","_CFRAG","_CFRAG")
-    cf.AddSys("K0L","_K0L","_K0L")
-    cf.AddSys("Ntrks","_NTRACKS","_NTRACKS")
+    for sys in systematics:
+        cf.AddSys( sys['label'] , sys['suffix_up'], sys['suffix_down'])
+histograms =  getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,"printTable")
+
+#Collect the histograms
+# Set the data and QCD templates 
+CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+histograms         = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+
+SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
+# Do not glue Templates
+#SetDataAndTemplates(cf, pTbin, WP, templates)
 
 cf.SetMatrixOption("WRITE")
-# Set the data and QCD templates 
-SetDataAndTemplates(cf, pTbin, WP, templates,glueTemplates,glueTemplatesTag)
-#SetDataAndTemplates(cf, pTbin, WP, templates)
 
 #labels of templates counted to be efficient
 b_template ="g #rightarrow b#bar{b}"
 # Fit and get efficiencies
 normSFdict  = FitAndGetEff(cf, b_template,templates,-1,"NA")
 sfTable.append( GetSFtableRow("Nominal",normSFdict,normSFdict) )
+
+#for template in templates:
+#    print template['label'],template['label']=='b'
+#    if not (template['label']=='b' or  template['label']=='g #rightarrow c#bar{c}') :
+#        continue
+#    scaleUp   = 1.5
+#    scaleDown = 0.5
+#    for scale in [scaleDown,scaleUp]:
+#        print "scaling template = %s, by %s"%(scale,template['label'])
+#        #Manipulate histograms
+#        template['scale'] = scale
+#        CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+#        histograms         = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+#        SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
+#
+#        SFdict  = FitAndGetEff(cf, b_template,templates,-1,"NA")
+#        if scale == scaleUp:
+#            tableHeader = template['suffix']+"_up"
+#        if scale == scaleDown:
+#            tableHeader = template['suffix']+"_down"
+#        sfTable.append( GetSFtableRow(tableHeader,SFdict,normSFdict) )
+#    #reset scales of all templates to 1
+#    for template in templates:
+#        template['scale'] = 1
+        
 
 # perform statistical variation
 if doStat:
@@ -344,7 +461,20 @@ if doSYS:
     sfTable.append( GetSFtableRow("K0L",SFdict,normSFdict) )
     SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_NTRACKS")
     sfTable.append( GetSFtableRow("NTrks",SFdict,normSFdict) )
+    #SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_JESup")
+    #sfTable.append( GetSFtableRow("JESup",SFdict,normSFdict) )
+    #SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_JESdown")
+    #sfTable.append( GetSFtableRow("JESdown",SFdict,normSFdict) )
 
 print tabulate(sfTable,"firstrow")
+
+for row in sfTable:
+    sumw2 = 0
+    if not sfTable.index(row)==0 and not row[0]=='Nominal':
+        print row[-1]
+        sumw2 += float(row[-1])**2
+    print "total sys err = ",sumw2**0.5
+
+
 del cf
 gApplication.Terminate()
