@@ -286,15 +286,6 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
 doSYS  =True
 doStat =False  # Need to set doSYS true
 
-def cfInit():
-    cfnew = CFIT.cfit("JP discriminator")
-    cfnew.SetOptimization(OPT_MORPH_SGN_SIGMA)
-    cfnew.SetMorphing(OPTMORPH_GEOMETRIC)
-    cfnew.ProducePlots(1)
-    cfnew.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
-    return cfnew
-
-
 gInterpreter.Declare("#include \"RecoBTag/CFIT/interface/cfit.h\"")
 gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.so"))
 cf = CFIT.cfit("JP discriminator")
@@ -468,13 +459,11 @@ if doSYS:
 
 print tabulate(sfTable,"firstrow")
 
-for row in sfTable:
-    sumw2 = 0
-    if not sfTable.index(row)==0 and not row[0]=='Nominal':
-        print row[-1]
-        sumw2 += float(row[-1])**2
+if doSYS:
+    for row in sfTable:
+        sumw2 = 0.0
+        if not sfTable.index(row)==0 and not row[0]=='Nominal':
+            sumw2 += float(row[-1])**2
     print "total sys err = ",sumw2**0.5
-
-
 del cf
 gApplication.Terminate()
