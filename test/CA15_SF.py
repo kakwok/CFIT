@@ -185,10 +185,22 @@ def ModifyHistograms(cf,CFITinput,templates,histograms):
         hClone.Write()
     tFile.Close()
     CFITupdatedROOT.Close()
-    cf.SetInputFile(CFITupdatedROOTname)
-    return CFITupdatedROOTname
+    del cf
+    cfnew = cfInit(LegendHeader,systematics)
+    cfnew.SetInputFile(CFITupdatedROOTname)
+    return cfnew,CFITupdatedROOTname
 
-    
+def cfInit(legendHeader,systematics):
+    cfnew = CFIT.cfit("JP discriminator")
+    cfnew.SetOptimization(OPT_MORPH_SGN_SIGMA)
+    cfnew.SetMorphing(OPTMORPH_GEOMETRIC)
+    cfnew.ProducePlots(1)
+    cfnew.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
+    if doSYS:
+        for sys in systematics:
+            cfnew.AddSys( sys['label'] , sys['suffix_up'], sys['suffix_down'])
+    return cfnew
+
 def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
     print "reading histograms from ",CFITinput
     tFile = TFile.Open(CFITinput)
@@ -285,16 +297,12 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
 #args = parser.parse_args()
 doSYS  =True
 doStat =False  # Need to set doSYS true
+doIndividualTemplate = True
+do5template          = True
 
 gInterpreter.Declare("#include \"RecoBTag/CFIT/interface/cfit.h\"")
 gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.so"))
-cf = CFIT.cfit("JP discriminator")
-cf.SetOptimization(OPT_MORPH_SGN_SIGMA)
-cf.SetMorphing(OPTMORPH_GEOMETRIC)
-cf.ProducePlots(1)
 
-#CFITinput = "/afs/cern.ch/work/k/kakwok/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/CFIT_btagval_histograms_fixQCDnorm.root"
-#CFITinput = "/afs/cern.ch/user/k/kakwok/work/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/CFIT_btagval_histograms.root"
 #CFITinput = "/afs/cern.ch/user/k/kakwok/work/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/CFitInput/CFIT_mcJPcalib.root"
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_sysMerged.root"
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_btagval.root"
@@ -341,10 +349,10 @@ glueTemplatesTag=[
 ]
 systematics = [
 {'label':'bFrag', 'suffix_up':'_BFRAGUP', 'suffix_down':'_BFRAGDOWN' },
-{'label':'PU'   , 'suffix_up':'_PUUP', 'suffix_down':'_PUDOWN' },
-{'label':'CD'   , 'suffix_up':'_CD', 'suffix_down':'_CD' },
-{'label':'CFRAG', 'suffix_up':'_CFRAG', 'suffix_down':'_CFRAG' },
-{'label':'K0L'  , 'suffix_up':'_K0L', 'suffix_down':'_K0L' },
+{'label':'PU'   , 'suffix_up':'_PUUP'   , 'suffix_down':'_PUDOWN' },
+{'label':'CD'   , 'suffix_up':'_CD'     , 'suffix_down':'_CD' },
+{'label':'CFRAG', 'suffix_up':'_CFRAG'  , 'suffix_down':'_CFRAG' },
+{'label':'K0L'  , 'suffix_up':'_K0L'    , 'suffix_down':'_K0L' },
 {'label':'Ntrks', 'suffix_up':'_NTRACKS', 'suffix_down':'_NTRACKS' },
 ]
 #glueTemplates=None
@@ -353,7 +361,9 @@ pTbin = "pt350to2000"
 #pTbin = "pt200to350"
 WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
 #WP    = "DoubleBH"   # Benedikt uses H for 0.9
-cf.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
+LegendHeader = "pT=[350,2000] DoubleB=0.75"
+LegendHeader = "pT=[350,2000] DoubleB=0.9"
+#cf.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
 #cf.SetLegendHeader("pT=[350,2000] DoubleBL=0.9")
 print "Using input file: ",CFITinput
 
@@ -361,17 +371,11 @@ sfTable =[]
 sfTable_cols=['Name','chi2(inclusive)','chi2(passed)','effMC','effData','sf','delta_SF']
 sfTable.append(sfTable_cols)
 
+cf = cfInit(LegendHeader,systematics)
+
+#Get nominal results
 cf.SetInputFile(CFITinput)
-if doSYS:
-    for sys in systematics:
-        cf.AddSys( sys['label'] , sys['suffix_up'], sys['suffix_down'])
 histograms =  getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,"printTable")
-
-#Collect the histograms
-# Set the data and QCD templates 
-CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
-histograms         = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
-
 SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
 # Do not glue Templates
 #SetDataAndTemplates(cf, pTbin, WP, templates)
@@ -384,30 +388,41 @@ b_template ="g #rightarrow b#bar{b}"
 normSFdict  = FitAndGetEff(cf, b_template,templates,-1,"NA")
 sfTable.append( GetSFtableRow("Nominal",normSFdict,normSFdict) )
 
-#for template in templates:
-#    print template['label'],template['label']=='b'
-#    if not (template['label']=='b' or  template['label']=='g #rightarrow c#bar{c}') :
-#        continue
-#    scaleUp   = 1.5
-#    scaleDown = 0.5
-#    for scale in [scaleDown,scaleUp]:
-#        print "scaling template = %s, by %s"%(scale,template['label'])
-#        #Manipulate histograms
-#        template['scale'] = scale
-#        CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
-#        histograms         = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
-#        SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
-#
-#        SFdict  = FitAndGetEff(cf, b_template,templates,-1,"NA")
-#        if scale == scaleUp:
-#            tableHeader = template['suffix']+"_up"
-#        if scale == scaleDown:
-#            tableHeader = template['suffix']+"_down"
-#        sfTable.append( GetSFtableRow(tableHeader,SFdict,normSFdict) )
-#    #reset scales of all templates to 1
-#    for template in templates:
-#        template['scale'] = 1
-        
+#Get individual template result
+if do5template:
+    cf,CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+    histograms            = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+    #Do not glue templates
+    SetDataAndTemplates(cf, histograms, templates)
+    SFdict                = FitAndGetEff(cf, b_template,templates,-1,"NA")
+    sfTable.append( GetSFtableRow("5-template",SFdict,normSFdict) )
+
+if doIndividualTemplate:
+    #Get template normalization variation result
+    for template in templates:
+        #vary on b and g->cc for now
+        if not (template['label']=='b' or  template['label']=='g #rightarrow c#bar{c}') :
+            continue
+        scaleUp   = 1.5
+        scaleDown = 0.5
+        for scale in [scaleDown,scaleUp]:
+            print "scaling template = %s, by %s"%(scale,template['label'])
+            #Manipulate histograms
+            template['scale'] = scale
+            #Modify the histograms, make a new cf
+            cf,CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+            #Get the histograms from the updated root
+            histograms            = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+            SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
+            SFdict  = FitAndGetEff(cf, b_template,templates,-1,"NA")
+            if scale == scaleUp:
+                tableHeader = template['suffix']+"_up"
+            if scale == scaleDown:
+                tableHeader = template['suffix']+"_down"
+            sfTable.append( GetSFtableRow(tableHeader,SFdict,normSFdict) )
+        #reset scales of all templates to 1
+        for template in templates:
+            template['scale'] = 1
 
 # perform statistical variation
 if doStat:
@@ -452,10 +467,6 @@ if doSYS:
     sfTable.append( GetSFtableRow("K0L",SFdict,normSFdict) )
     SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_NTRACKS")
     sfTable.append( GetSFtableRow("NTrks",SFdict,normSFdict) )
-    #SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_JESup")
-    #sfTable.append( GetSFtableRow("JESup",SFdict,normSFdict) )
-    #SFdict  = FitAndGetEff(cf, b_template,templates,-1,"_JESdown")
-    #sfTable.append( GetSFtableRow("JESdown",SFdict,normSFdict) )
 
 print tabulate(sfTable,"firstrow")
 
