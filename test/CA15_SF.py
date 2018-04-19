@@ -87,7 +87,7 @@ def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
                 b   =result['par_Tag']          = cf.GetPar(i)
                 errb=result['parErr_Tag']       = cf.GetParErr(i)
                 a   =result['preFitN_Tag']      = cf.GetNTemplate(tmp['label'])
-                erra=result['preFitN_err_Tag']  = 0
+                erra=result['preFitN_err_Tag']  = 0   
                 #erra=result['preFitN_err_Tag']  = cf.GetErrTemplate(tmp['label'])
                 result['postFitN_Tag']          = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)
                 result['postFitN_err_Tag']      = errAB( a*b,a,erra,b,errb) 
@@ -296,9 +296,10 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
 #parser.add_argument("--doStat"   ,  help="Run statistic variation")
 #args = parser.parse_args()
 doSYS  =True
-doStat =False  # Need to set doSYS true
+doStat =True  # Need to set doSYS true
 doIndividualTemplate = True
 do5template          = True
+doFittingOpts        = True
 
 gInterpreter.Declare("#include \"RecoBTag/CFIT/interface/cfit.h\"")
 gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.so"))
@@ -306,7 +307,6 @@ gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.
 #CFITinput = "/afs/cern.ch/user/k/kakwok/work/public/Hbb_ISR/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/CFitInput/CFIT_mcJPcalib.root"
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_sysMerged.root"
 #CFITinput = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/Mu_350_merged/Final_histograms_btagval.root"
-#CFITinput = args.inputFile 
 #CFITinput = "Final_histograms_sysMerged.root"
 #CFITinput  = "/afs/cern.ch/work/b/bmaier/public/MonoHiggs/BTV/CMSSW_8_0_23/src/RecoBTag/BTagValidation/test/SFtemplates_dataJPcalib/Final_histograms_btagval_optimized_doublemu_BTagMu_QCDMuEnriched_HLTAK8Jet300_mcJPcalib_pt350_DoubleBM2.root"
 
@@ -359,9 +359,9 @@ systematics = [
 #glueTemplatesTag=None
 pTbin = "pt350to2000"
 #pTbin = "pt200to350"
-WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
-#WP    = "DoubleBH"   # Benedikt uses H for 0.9
-LegendHeader = "pT=[350,2000] DoubleB=0.75"
+#WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
+WP    = "DoubleBH"   # Benedikt uses H for 0.9
+#LegendHeader = "pT=[350,2000] DoubleB=0.75"
 LegendHeader = "pT=[350,2000] DoubleB=0.9"
 #cf.SetLegendHeader("pT=[350,2000] DoubleB=0.75")
 #cf.SetLegendHeader("pT=[350,2000] DoubleBL=0.9")
@@ -401,8 +401,7 @@ if doIndividualTemplate:
     #Get template normalization variation result
     for template in templates:
         #vary on b and g->cc for now
-        if not (template['label']=='b' or  template['label']=='g #rightarrow c#bar{c}') :
-            continue
+        #if not (template['label']=='b' or  template['label']=='g #rightarrow c#bar{c}') :            continue
         scaleUp   = 1.5
         scaleDown = 0.5
         for scale in [scaleDown,scaleUp]:
@@ -423,6 +422,53 @@ if doIndividualTemplate:
         #reset scales of all templates to 1
         for template in templates:
             template['scale'] = 1
+
+#Get varies fitting options
+if doFittingOpts:
+    Optimizations = {
+        "OPT_NONE"           :OPT_NONE, 
+        "OPT_MORPH"          :OPT_MORPH,
+        "OPT_SGN"            :OPT_SGN,
+        "OPT_SIGMA"          :OPT_SIGMA,
+        "OPT_MORPH_SGN"      :OPT_MORPH_SGN,
+        "OPT_MORPH_SIGMA"    :OPT_MORPH_SIGMA, 
+        "OPT_SGN_SIGMA"      :OPT_SGN_SIGMA,    
+        "OPT_MORPH_SGN_SIGMA":OPT_MORPH_SGN_SIGMA
+    }
+    Morphings = [
+        {'name':'OPTMORPH_CUTOFF'    ,'option':OPTMORPH_CUTOFF,'cutoff':0.75},
+        {'name':'OPTMORPH_CUTOFF'    ,'option':OPTMORPH_CUTOFF,'cutoff':0.5},
+        {'name':'OPTMORPH_CUTOFF'    ,'option':OPTMORPH_CUTOFF,'cutoff':0.25},
+        {'name':'OPTMORPH_ARITHMETIC','option':OPTMORPH_ARITHMETIC},
+        {'name':'OPTMORPH_FUNC'      ,'option':OPTMORPH_FUNC},
+    ]
+    sfTable.append(['-',' - ', '-', '-','-','-','-'])
+    for opts in Optimizations.keys():
+        cf,CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+        histograms            = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+        SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
+        #set optimization
+        cf.SetOptimization(Optimizations[opts]) 
+        SFdict                = FitAndGetEff(cf, b_template,templates,-1,"NA")
+        sfTable.append( GetSFtableRow(opts,SFdict,normSFdict) )
+    sfTable.append(['-',' - ', '-', '-','-','-','-'])
+    cf.SetOptimization(OPT_MORPH_SGN_SIGMA)
+    for morphing in Morphings:
+        cf,CFITinput_updated  = ModifyHistograms (cf,CFITinput, templates,histograms)
+        histograms            = getHistograms(cf,CFITinput_updated,pTbin,WP,templates,systematics,"printTable")
+        SetDataAndTemplates(cf, histograms, templates,glueTemplates,glueTemplatesTag)
+        #set optimization
+        if 'cutoff' in morphing.keys():
+            cf.SetMorphing(morphing['option'],morphing['cutoff']) 
+        else:
+            cf.SetMorphing(morphing['option']) 
+        SFdict                = FitAndGetEff(cf, b_template,templates,-1,"NA")
+        if 'cutoff' in morphing.keys():
+            sfTable.append( GetSFtableRow(morphing['name']+"_"+str(morphing['cutoff']) ,SFdict,normSFdict) )
+        else:
+            sfTable.append( GetSFtableRow(morphing['name'],SFdict,normSFdict) )
+    cf.SetMorphing(OPTMORPH_GEOMETRIC) 
+    sfTable.append(['-',' - ', '-', '-','-','-','-'])
 
 # perform statistical variation
 if doStat:
@@ -471,10 +517,15 @@ if doSYS:
 print tabulate(sfTable,"firstrow")
 
 if doSYS:
+    sumw2=0.0
+    sumw2up = 0.0
+    sumw2down = 0.0
     for row in sfTable:
-        sumw2 = 0.0
-        if not sfTable.index(row)==0 and not row[0]=='Nominal':
+        if not sfTable.index(row)==0 and not row[0]=='Nominal' and not row[-1]=='-':
             sumw2 += float(row[-1])**2
-    print "total sys err = ",sumw2**0.5
+            if (not 'up'   in row[0].lower()): sumw2down += float(row[-1])**2
+            if (not 'down' in row[0].lower()): sumw2up += float(row[-1])**2
+
+    print "total sys err = %.5f, sys_up = %.5f, sys_down=%.5f"%(sumw2**0.5,sumw2up**0.5,sumw2down**0.5)
 del cf
 gApplication.Terminate()
