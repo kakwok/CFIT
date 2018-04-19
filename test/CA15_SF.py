@@ -25,12 +25,7 @@ def GetSFtableRow( SFname,  SFdict, normSFdict ):
 
 def FitAndGetEff(cf,b_template,all_templates,nStat,SysName,printOut=None):
     if nStat is not -1 :        cf.SetStatVariation(nStat)
-    #if SysName in all_templates.keys:
-    #    
-    #elif SysName not "NA" :
-    #    cf.SetSysVariation(SysName)
-    if SysName is not "NA":
-        cf.SetSysVariation(SysName)
+    if SysName is not "NA":        cf.SetSysVariation(SysName)
         
     print "Running fit on untagged histograms"
     cf.Run()
@@ -133,9 +128,6 @@ def printResults(cfit,templates):
         postFit_table.append([template['label'],cf.GetNTemplate(template['label']),fit_result,postFit_yield])
     print tabulate(postFit_table,"firstrow")
     return
-    #for i in range(0,cfit.GetNPar()):
-    #    print "par %i = %.3f +- %.3f"%(i,cfit.GetPar(i), cfit.GetParErr(i))
-    #return
 
 def ListToVector(pyList,Type):
     if Type=="string":
@@ -224,7 +216,6 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
         #QCDheader  = "QCD__FatJet_JP_"
     for tag in tagList :
         if "all" in tag:
-            #dataHistoName = dataHeader+tag+"_data_opt"
             dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             histograms['data']['all'] = dataHistoName
@@ -234,7 +225,6 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
                 template['histoNames'].append(QCDhistoname)
                 histograms[template['label']]['all'] = QCDhistoname
         if "pass" in tag:
-            #dataHistoName = dataHeader+tag+"_data_opt"
             dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             histograms['data']['tag'] = dataHistoName
@@ -244,7 +234,6 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
                 template['histoNames'].append(QCDhistoname)
                 histograms[template['label']]['tag'] = QCDhistoname
         if "fail" in tag:
-            #dataHistoName = dataHeader+tag+"_data_opt"
             dataHistoName = dataHeader+tag+"_data"
             histoNames.append(dataHistoName)
             histograms['data']['untag'] = dataHistoName
@@ -290,11 +279,6 @@ def getHistograms(cf,CFITinput,pTbin,WP,templates,systematics,printTable=None):
                             template['histoNames'].append(hName+sys['suffix_down'])
     return histograms 
 
-#parser = argparse.ArgumentParser()
-#parser.add_argument("--inputFile", help="path to the histogram file")
-#parser.add_argument("--doSYS"    , help="Run systematic variation")
-#parser.add_argument("--doStat"   ,  help="Run statistic variation")
-#args = parser.parse_args()
 doSYS  =True
 doStat =True  # Need to set doSYS true
 doIndividualTemplate = True
@@ -314,18 +298,11 @@ gSystem.Load(os.path.expandvars("$CMSSW_BASE/lib/$SCRAM_ARCH/pluginRecoBTagCFIT.
 #CFITinput = "Final_histograms_sysMerged_rebinned.root"
 CFITinput = "Final_histograms_sysMerged__rebinned.root"
 #CFITinput = "Final_histograms_sysMerged__rebinned_updated.root"
+
 # Use this file to get DataJPcalib systematics
 #CFITinput = "CFIT_btagval_histograms_fixQCDnorm_DataJPcalib_rebin__rebinned.root"
 #CFITinput = "Both_ADDBINNING.root"
 
-sysList = [
-    'BFRAG',
-    'CD',
-    'CFRAG',
-    'K0L',
-    'NTRACKS',
-    'PU'
-]
 templates =[
 {'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg','color':2,'scale':1, 'histoNames':[]},
 {'label':'b'                     , 'suffix':'b'     ,'color':3,'scale':1, 'histoNames':[]},
@@ -333,13 +310,6 @@ templates =[
 {'label':'c'                     , 'suffix':'c'     ,'color':4,'scale':1, 'histoNames':[]},
 {'label':'l'                     , 'suffix':'l'     ,'color':6,'scale':1, 'histoNames':[]}
 ]
-#templates =[
-#{'label':'g #rightarrow b#bar{b}', 'suffix':'bfromg_opt','color':2,'scale':1, 'histoNames':[]},
-#{'label':'b'                     , 'suffix':'b_opt'     ,'color':3,'scale':1, 'histoNames':[]},
-#{'label':'g #rightarrow c#bar{c}', 'suffix':'cfromg_opt','color':5,'scale':1, 'histoNames':[]},
-#{'label':'c'                     , 'suffix':'c_opt'     ,'color':4,'scale':1, 'histoNames':[]},
-#{'label':'l'                     , 'suffix':'l_opt'     ,'color':6,'scale':1, 'histoNames':[]}
-#]
 glueTemplates=[
 {'label':'b+g #rightarrow c#bar{c}'  , 'glueList':['b','g #rightarrow c#bar{c}']  ,'color':221},
 {'label':'c+light'                   , 'glueList':['c','l']                       ,'color':93}
@@ -355,8 +325,6 @@ systematics = [
 {'label':'K0L'  , 'suffix_up':'_K0L'    , 'suffix_down':'_K0L' },
 {'label':'Ntrks', 'suffix_up':'_NTRACKS', 'suffix_down':'_NTRACKS' },
 ]
-#glueTemplates=None
-#glueTemplatesTag=None
 pTbin = "pt350to2000"
 #pTbin = "pt200to350"
 #WP    = "DoubleBM2"   # Benedikt uses M2 for 0.75
@@ -521,7 +489,7 @@ if doSYS:
     sumw2up = 0.0
     sumw2down = 0.0
     for row in sfTable:
-        if not sfTable.index(row)==0 and not row[0]=='Nominal' and not row[-1]=='-':
+        if not sfTable.index(row)==0 and not row[0]=='Statistics'  and not row[-1]=='-':
             sumw2 += float(row[-1])**2
             if (not 'up'   in row[0].lower()): sumw2down += float(row[-1])**2
             if (not 'down' in row[0].lower()): sumw2up += float(row[-1])**2
