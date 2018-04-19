@@ -57,6 +57,7 @@ hisotNames: List of histoNames (including systematics of the template) to be sca
 MC templates are weighted by fit parameters to match to data.
 
 The post-fit number of events for a certain MC template is obtained by 
+
 `result = cf.GetNTemplate(tmp['label']) * cf.GetPar(i)`
 
 Then SF is calculated based on the ratio of pre-fit eff, over post-fit eff
