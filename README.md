@@ -17,7 +17,7 @@ scram b -j8
 ```
 then `CFIT` can be used with python.
 
-The `test/CA15_SF.py` script takes a BTV NTuple to measure the data/MC S.F. with LT method
+The `test/CA15_SF.py` script takes a BTV NTuple to measure the data/MC S.F. with LT method. \n
 To run the script, simply do:
 `python CA15_SF.py -b`
 
